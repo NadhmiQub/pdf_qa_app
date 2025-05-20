@@ -1,46 +1,35 @@
-import os
 import streamlit as st
-from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chains.question_answering import load_qa_chain
-from langchain.chat_models import ChatOpenAI
-from langchain.text_splitter import CharacterTextSplitter
-from tempfile import NamedTemporaryFile
-from dotenv import load_dotenv
+from PyPDF2 import PdfReader
+import openai
 
-# تحميل مفاتيح البيئة
-load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
+st.set_page_config(page_title="دليل الطالب - سؤال وجواب", layout="centered")
+st.title("📘 اسأل عن دليلك الجامعي")
 
-st.set_page_config(page_title="سؤال من PDF", layout="centered")
-st.title("📄 استفسر من ملف PDF")
+pdf = st.file_uploader("📎 قم برفع دليل PDF", type="pdf")
 
-uploaded_file = st.file_uploader("📥 ارفع ملف PDF", type=["pdf"])
+question = st.text_input("✍️ اكتب سؤالك هنا")
 
-if uploaded_file:
-    with NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-        temp_file.write(uploaded_file.read())
-        temp_file_path = temp_file.name
+if pdf and question:
+    reader = PdfReader(pdf)
+    text = ""
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text
 
-    # استخراج النص من الملف
-    loader = PyPDFLoader(temp_file_path)
-    documents = loader.load()
+    prompt = f"الملف التالي يحتوي على دليل الطالب. استخرج إجابة مناسبة على السؤال التالي فقط من هذا المحتوى.
 
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    texts = text_splitter.split_documents(documents)
+السؤال: {question}
 
-    embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
-    db = FAISS.from_documents(texts, embeddings)
-    chain = load_qa_chain(ChatOpenAI(openai_api_key=openai_api_key), chain_type="stuff")
+الدليل:
+{text[:3000]}"
 
-    query = st.text_input("💬 ما سؤالك؟")
-
-    if query:
-        with st.spinner("جاري المعالجة..."):
-            docs = db.similarity_search(query)
-            answer = chain.run(input_documents=docs, question=query)
-            st.success("✅ تم العثور على الإجابة:")
-            st.write(answer)
-else:
-    st.info("يرجى رفع ملف PDF أولاً.")
+    openai.api_key = st.secrets["openai_api_key"]
+    with st.spinner("جاري البحث في الدليل..."):
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+        st.success("✅ تم العثور على الإجابة:")
+        st.write(response["choices"][0]["message"]["content"])
