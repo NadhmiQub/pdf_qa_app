@@ -17,12 +17,12 @@ if pdf and question:
         if page_text:
             text += page_text
 
-    prompt = f"الملف التالي يحتوي على دليل الطالب. استخرج إجابة مناسبة على السؤال التالي فقط من هذا المحتوى.
-
-السؤال: {question}
-
-الدليل:
-{text[:3000]}"
+    # Safely construct the prompt using parentheses to avoid unterminated string
+    prompt = (
+        f"الملف التالي يحتوي على دليل الطالب. استخرج إجابة مناسبة على السؤال التالي فقط من هذا المحتوى.\n\n"
+        f"السؤال: {question}\n\n"
+        f"الدليل:\n{text[:3000]}"
+    )
 
     openai.api_key = st.secrets["openai_api_key"]
     with st.spinner("جاري البحث في الدليل..."):
